@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stoichiometrical</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-labelledby="app-title">
+        <div class="control-panel">
+          <header class="brand-lockup">
+            <div class="brand-row">
+              <div class="molecule-mark" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <p class="eyebrow">Stoichiometrical</p>
+            </div>
+            <h1 id="app-title">Trace every conversion.</h1>
+            <p class="intro-copy">Mass, moles, and particles stay connected through molar mass and Avogadro's number.</p>
+          </header>
+
+          <form id="conversion-form" class="converter-form">
+            <label>
+              Chemical formula
+              <input id="formula" name="formula" value="H2O" autocomplete="off" spellcheck="false">
+            </label>
+
+            <label>
+              Amount
+              <input id="value" name="value" value="18.015" inputmode="decimal">
+            </label>
+
+            <div class="unit-grid">
+              <label>
+                From
+                <select id="from-unit" name="fromUnit">
+                  <option value="mass">Mass (g)</option>
+                  <option value="moles">Moles (mol)</option>
+                  <option value="particles">Particles / atoms</option>
+                </select>
+              </label>
+
+              <label>
+                To
+                <select id="to-unit" name="toUnit">
+                  <option value="particles">Particles / atoms</option>
+                  <option value="moles">Moles (mol)</option>
+                  <option value="mass">Mass (g)</option>
+                </select>
+              </label>
+            </div>
+
+            <button type="submit">Convert</button>
+          </form>
+
+          <div class="preset-row" aria-label="Example formulas">
+            <button type="button" data-formula="H2O" data-value="18.015" data-from-unit="mass" data-to-unit="particles">H2O</button>
+            <button type="button" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
+            <button type="button" data-formula="Ca(OH)2" data-value="2" data-from-unit="moles" data-to-unit="mass">Ca(OH)2</button>
+          </div>
+
+          <div id="status" class="status" role="status"></div>
+        </div>
+
+        <div class="visual-panel">
+          <section class="result-band" aria-label="Conversion result">
+            <div class="result-primary">
+              <div class="result-topline">
+                <span class="result-label">Result</span>
+                <span id="formula-chip" class="formula-chip">H2O</span>
+              </div>
+              <strong id="result-value">6.0221e+23</strong>
+              <span id="result-unit">particles</span>
+            </div>
+            <dl>
+              <div>
+                <dt>Molar mass</dt>
+                <dd id="molar-mass">18.015 g/mol</dd>
+              </div>
+              <div>
+                <dt>Total atoms</dt>
+                <dd id="total-atoms">1.8066e+24</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="map-section" aria-label="Conversion relationship map">
+            <div class="section-heading">
+              <h2>Conversion map</h2>
+              <span>molar mass and Avogadro's number</span>
+            </div>
+            <svg id="conversion-map" viewBox="0 0 760 260" role="img" aria-labelledby="map-title map-desc">
+              <title id="map-title">Unit conversion relationship map</title>
+              <desc id="map-desc">Mass and particles connect through moles, with highlighted arrows showing the active path.</desc>
+              <defs>
+                <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#2f8f67"></path>
+                </marker>
+                <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#d17a22"></path>
+                </marker>
+                <marker id="arrow-violet" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#6e58c9"></path>
+                </marker>
+                <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#c84f4f"></path>
+                </marker>
+              </defs>
+
+              <rect class="map-card" x="32" y="32" width="696" height="196" rx="18"></rect>
+              <path id="mass-to-moles" class="map-arrow green" d="M170 109 C245 68, 313 68, 380 109" marker-end="url(#arrow-green)"></path>
+              <path id="moles-to-mass" class="map-arrow orange" d="M380 151 C305 194, 238 194, 170 151" marker-end="url(#arrow-orange)"></path>
+              <path id="particles-to-moles" class="map-arrow violet" d="M590 151 C515 194, 448 194, 380 151" marker-end="url(#arrow-violet)"></path>
+              <path id="moles-to-particles" class="map-arrow red" d="M380 109 C455 68, 522 68, 590 109" marker-end="url(#arrow-red)"></path>
+
+              <g class="factor-label" transform="translate(270 68)">
+                <rect width="118" height="32" rx="16"></rect>
+                <text x="59" y="21">molar mass</text>
+              </g>
+              <g class="factor-label" transform="translate(417 68)">
+                <rect width="146" height="32" rx="16"></rect>
+                <text x="73" y="21">Avogadro</text>
+              </g>
+
+              <g class="map-node" data-unit="mass" transform="translate(80 82)">
+                <circle r="58" cx="58" cy="58"></circle>
+                <text x="58" y="53">Mass</text>
+                <text x="58" y="78">grams</text>
+              </g>
+              <g class="map-node" data-unit="moles" transform="translate(322 82)">
+                <circle r="58" cx="58" cy="58"></circle>
+                <text x="58" y="53">Moles</text>
+                <text x="58" y="78">mol</text>
+              </g>
+              <g class="map-node" data-unit="particles" transform="translate(564 82)">
+                <circle r="58" cx="58" cy="58"></circle>
+                <text x="58" y="53">Particles</text>
+                <text x="58" y="78">atoms</text>
+              </g>
+            </svg>
+          </section>
+
+          <section class="details-section">
+            <div>
+              <h2>Formula breakdown</h2>
+              <div id="composition" class="composition-list"></div>
+            </div>
+            <div>
+              <h2>Visible math</h2>
+              <ol id="steps" class="steps-list"></ol>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
