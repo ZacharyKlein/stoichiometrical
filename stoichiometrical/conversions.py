@@ -156,6 +156,20 @@ class ElementAnalysisResult:
     steps: List[ConversionStep]
 
 
+@dataclass(frozen=True)
+class FormulaUnitsResult:
+    """Formula-unit count for a compound sample."""
+
+    formula: str
+    composition: Dict[str, int]
+    molar_mass: float
+    sample_value: float
+    sample_unit: str
+    sample_moles: float
+    formula_units: float
+    steps: List[ConversionStep]
+
+
 class FormulaError(ValueError):
     """Raised when a chemical formula cannot be parsed."""
 
@@ -322,6 +336,73 @@ def analyze_element_mass_percent(formula: str, element: str) -> ElementAnalysisR
     )
 
 
+def analyze_formula_units_in_sample(
+    formula: str,
+    sample_value: float,
+    sample_unit: str,
+) -> FormulaUnitsResult:
+    """Find formula units in a sample given grams or moles of compound."""
+
+    if sample_value <= 0:
+        raise ConversionError("Enter a sample amount greater than zero.")
+    if sample_unit not in {"mass", "moles"}:
+        raise ConversionError("Choose grams or moles for the sample amount.")
+
+    molar_mass, composition = molar_mass_for(formula)
+    steps: List[ConversionStep] = []
+
+    if sample_unit == "mass":
+        sample_moles = sample_value / molar_mass
+        steps.append(
+            ConversionStep(
+                title="Sample mass to moles",
+                expression=(
+                    f"{format_number(sample_value)} g sample x "
+                    f"1 mol / {format_number(molar_mass)} g"
+                ),
+                result=sample_moles,
+                unit="moles compound",
+                color="green",
+            )
+        )
+    else:
+        sample_moles = sample_value
+        steps.append(
+            ConversionStep(
+                title="Use given moles",
+                expression=f"{format_number(sample_value)} mol sample is already in moles.",
+                result=sample_moles,
+                unit="moles compound",
+                color="blue",
+            )
+        )
+
+    formula_units = sample_moles * AVOGADRO_NUMBER
+    steps.append(
+        ConversionStep(
+            title="Moles to formula units",
+            expression=(
+                f"{format_number(sample_moles)} mol x "
+                f"{format_number(AVOGADRO_NUMBER)} formula units / 1 mol"
+            ),
+            result=formula_units,
+            unit="formula units",
+            color="red",
+        )
+    )
+
+    return FormulaUnitsResult(
+        formula=normalize_formula(formula),
+        composition=composition,
+        molar_mass=molar_mass,
+        sample_value=sample_value,
+        sample_unit=sample_unit,
+        sample_moles=sample_moles,
+        formula_units=formula_units,
+        steps=steps,
+    )
+
+
 def serialize_result(result: ConversionResult) -> Dict[str, object]:
     """Convert dataclasses into JSON-friendly dictionaries."""
 
@@ -345,6 +426,30 @@ def serialize_result(result: ConversionResult) -> Dict[str, object]:
             for step in result.steps
         ],
         "totalAtoms": result.total_atoms,
+    }
+
+
+def serialize_formula_units(result: FormulaUnitsResult) -> Dict[str, object]:
+    """Convert formula-unit sample output into a frontend-friendly payload."""
+
+    return {
+        "formula": result.formula,
+        "composition": result.composition,
+        "molarMass": result.molar_mass,
+        "sampleValue": result.sample_value,
+        "sampleUnit": result.sample_unit,
+        "sampleMoles": result.sample_moles,
+        "formulaUnits": result.formula_units,
+        "steps": [
+            {
+                "title": step.title,
+                "expression": step.expression,
+                "result": step.result,
+                "unit": step.unit,
+                "color": step.color,
+            }
+            for step in result.steps
+        ],
     }
 
 

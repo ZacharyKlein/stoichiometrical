@@ -13,13 +13,20 @@ const formulaChip = document.querySelector("#formula-chip");
 const submitButton = document.querySelector("#submit-button");
 const conversionFields = document.querySelector(".conversion-fields");
 const elementFields = document.querySelector(".element-fields");
+const massPercentField = document.querySelector(".mass-percent-field");
+const sampleFields = document.querySelector(".sample-fields");
 const conversionVisual = document.querySelector("#conversion-visual");
 const elementVisual = document.querySelector("#element-visual");
+const formulaUnitsVisual = document.querySelector("#formula-units-visual");
 const elementPercentFill = document.querySelector("#element-percent-fill");
 const elementPercentLabel = document.querySelector("#element-percent-label");
 const elementLegend = document.querySelector("#element-legend");
+const sampleFlowValue = document.querySelector("#sample-flow-value");
+const molesFlowValue = document.querySelector("#moles-flow-value");
+const unitsFlowValue = document.querySelector("#units-flow-value");
 const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 let activeMode = "conversion";
+let latestRequestId = 0;
 
 const arrowByStep = {
   "Mass to moles": "mass-to-moles",
@@ -36,6 +43,9 @@ form.addEventListener("submit", (event) => {
 // Recalculate as soon as a control changes so the visuals stay in sync.
 for (const control of form.elements) {
   control.addEventListener("change", updateCurrentMode);
+  if (control.tagName === "INPUT") {
+    control.addEventListener("input", updateCurrentMode);
+  }
 }
 
 document.querySelectorAll(".mode-switch button").forEach((button) => {
@@ -53,7 +63,13 @@ document.querySelectorAll(".preset-row button").forEach((button) => {
       form.elements.namedItem("fromUnit").value = button.dataset.fromUnit;
       form.elements.namedItem("toUnit").value = button.dataset.toUnit;
     } else {
-      form.elements.namedItem("element").value = button.dataset.element;
+      form.elements.namedItem("questionType").value = button.dataset.questionType;
+      if (button.dataset.questionType === "massPercent") {
+        form.elements.namedItem("element").value = button.dataset.element;
+      } else {
+        form.elements.namedItem("sampleValue").value = button.dataset.sampleValue;
+        form.elements.namedItem("sampleUnit").value = button.dataset.sampleUnit;
+      }
     }
     updateCurrentMode();
   });
@@ -81,6 +97,11 @@ function formatPercent(value) {
 
 async function updateCurrentMode() {
   if (activeMode === "element") {
+    updateFocusedProblemFields();
+    if (currentQuestionType() === "formulaUnits") {
+      await updateFormulaUnits();
+      return;
+    }
     await updateElementAnalysis();
     return;
   }
@@ -90,6 +111,7 @@ async function updateCurrentMode() {
 
 async function updateConversion() {
   statusNode.textContent = "";
+  const requestId = ++latestRequestId;
 
   const params = new URLSearchParams(new FormData(form));
   let response;
@@ -100,6 +122,10 @@ async function updateConversion() {
     payload = await response.json();
   } catch (error) {
     statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    return;
+  }
+
+  if (requestId !== latestRequestId) {
     return;
   }
 
@@ -115,6 +141,10 @@ function applyInitialQueryValues() {
   const params = new URLSearchParams(window.location.search);
 
   if (params.get("mode") === "element") {
+    activeMode = "element";
+  }
+
+  if (params.has("questionType")) {
     activeMode = "element";
   }
 
@@ -137,8 +167,9 @@ function setMode(mode, shouldUpdate = true) {
   conversionFields.classList.toggle("hidden", isElementMode);
   conversionVisual.classList.toggle("hidden", isElementMode);
   elementFields.classList.toggle("hidden", !isElementMode);
-  elementVisual.classList.toggle("hidden", !isElementMode);
-  submitButton.textContent = isElementMode ? "Solve element question" : "Convert";
+  elementVisual.classList.toggle("hidden", true);
+  formulaUnitsVisual.classList.toggle("hidden", true);
+  submitButton.textContent = isElementMode ? "Solve focused problem" : "Convert";
 
   if (
     isElementMode &&
@@ -148,9 +179,21 @@ function setMode(mode, shouldUpdate = true) {
     form.elements.namedItem("formula").value = "HCl";
   }
 
+  updateFocusedProblemFields();
+
   if (shouldUpdate) {
     updateCurrentMode();
   }
+}
+
+function currentQuestionType() {
+  return form.elements.namedItem("questionType").value;
+}
+
+function updateFocusedProblemFields() {
+  const isFormulaUnits = currentQuestionType() === "formulaUnits";
+  massPercentField.classList.toggle("hidden", isFormulaUnits);
+  sampleFields.classList.toggle("hidden", !isFormulaUnits);
 }
 
 function renderResult(payload) {
@@ -166,6 +209,8 @@ function renderResult(payload) {
   renderComposition(payload.composition);
   renderSteps(payload.steps);
   highlightMap(payload);
+  elementVisual.classList.add("hidden");
+  formulaUnitsVisual.classList.add("hidden");
   updatePresetState({
     mode: "conversion",
     formula: payload.formula,
@@ -176,6 +221,7 @@ function renderResult(payload) {
 
 async function updateElementAnalysis() {
   statusNode.textContent = "";
+  const requestId = ++latestRequestId;
 
   const params = new URLSearchParams(new FormData(form));
   let response;
@@ -186,6 +232,10 @@ async function updateElementAnalysis() {
     payload = await response.json();
   } catch (error) {
     statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    return;
+  }
+
+  if (requestId !== latestRequestId) {
     return;
   }
 
@@ -210,10 +260,64 @@ function renderElementAnalysis(payload) {
   renderComposition(payload.composition, payload.element);
   renderSteps(payload.steps);
   renderElementVisual(payload);
+  elementVisual.classList.remove("hidden");
+  formulaUnitsVisual.classList.add("hidden");
   updatePresetState({
     mode: "element",
+    questionType: "massPercent",
     formula: payload.formula,
     element: payload.element,
+  });
+}
+
+async function updateFormulaUnits() {
+  statusNode.textContent = "";
+  const requestId = ++latestRequestId;
+
+  const params = new URLSearchParams(new FormData(form));
+  let response;
+  let payload;
+
+  try {
+    response = await fetch(`${apiBase}/api/formula-units?${params.toString()}`);
+    payload = await response.json();
+  } catch (error) {
+    statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    return;
+  }
+
+  if (requestId !== latestRequestId) {
+    return;
+  }
+
+  if (!response.ok) {
+    statusNode.textContent = payload.error || "Something went wrong.";
+    return;
+  }
+
+  renderFormulaUnits(payload);
+}
+
+function renderFormulaUnits(payload) {
+  resultLabel.textContent = "Formula units";
+  formulaChip.textContent = payload.formula;
+  resultValue.textContent = formatNumber(payload.formulaUnits);
+  resultUnit.textContent = "formula units";
+  metricOneLabel.textContent = "Sample moles";
+  metricTwoLabel.textContent = "Molar mass";
+  molarMass.textContent = `${formatNumber(payload.sampleMoles)} mol`;
+  totalAtoms.textContent = `${formatNumber(payload.molarMass)} g/mol`;
+
+  renderComposition(payload.composition);
+  renderSteps(payload.steps);
+  renderFormulaUnitsVisual(payload);
+  elementVisual.classList.add("hidden");
+  formulaUnitsVisual.classList.remove("hidden");
+  updatePresetState({
+    mode: "element",
+    questionType: "formulaUnits",
+    formula: payload.formula,
+    sampleUnit: payload.sampleUnit,
   });
 }
 
@@ -284,6 +388,13 @@ function renderElementVisual(payload) {
   elementLegend.textContent = payload.element;
 }
 
+function renderFormulaUnitsVisual(payload) {
+  const sampleUnitLabel = payload.sampleUnit === "mass" ? "g" : "mol";
+  sampleFlowValue.textContent = `${formatNumber(payload.sampleValue)} ${sampleUnitLabel}`;
+  molesFlowValue.textContent = `${formatNumber(payload.sampleMoles)} mol`;
+  unitsFlowValue.textContent = formatNumber(payload.formulaUnits);
+}
+
 function updatePresetState(payload) {
   document.querySelectorAll(".preset-row button").forEach((button) => {
     let isActive = false;
@@ -299,8 +410,11 @@ function updatePresetState(payload) {
     if (payload.mode === "element") {
       isActive =
         button.dataset.mode === "element" &&
+        button.dataset.questionType === payload.questionType &&
         button.dataset.formula === payload.formula &&
-        button.dataset.element === payload.element;
+        (payload.questionType === "massPercent"
+          ? button.dataset.element === payload.element
+          : button.dataset.sampleUnit === payload.sampleUnit);
     }
 
     button.classList.toggle("active", isActive);

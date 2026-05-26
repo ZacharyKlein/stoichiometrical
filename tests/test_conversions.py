@@ -4,9 +4,11 @@ from stoichiometrical.conversions import (
     FormulaError,
     AVOGADRO_NUMBER,
     analyze_element_mass_percent,
+    analyze_formula_units_in_sample,
     convert_amount,
     parse_formula,
     serialize_element_analysis,
+    serialize_formula_units,
     serialize_result,
 )
 
@@ -69,6 +71,24 @@ class ElementAnalysisTests(unittest.TestCase):
         self.assertEqual(payload["element"], "Cl")
         self.assertIn("massPercent", payload)
         self.assertIn("elementMass", payload)
+
+
+class FormulaUnitsTests(unittest.TestCase):
+    def test_formula_units_from_sample_mass(self):
+        result = analyze_formula_units_in_sample("NaCl", 58.44, "mass")
+        self.assertAlmostEqual(result.sample_moles, 1.0, places=4)
+        self.assertAlmostEqual(result.formula_units / AVOGADRO_NUMBER, 1.0, places=4)
+        self.assertEqual([step.title for step in result.steps], ["Sample mass to moles", "Moles to formula units"])
+
+    def test_formula_units_from_sample_moles(self):
+        result = analyze_formula_units_in_sample("H2O", 2, "moles")
+        self.assertAlmostEqual(result.formula_units, 2 * AVOGADRO_NUMBER, places=1)
+
+    def test_serialized_formula_units_shape_matches_frontend(self):
+        payload = serialize_formula_units(analyze_formula_units_in_sample("NaCl", 58.44, "mass"))
+        self.assertIn("formulaUnits", payload)
+        self.assertIn("sampleMoles", payload)
+        self.assertEqual(payload["sampleUnit"], "mass")
 
 
 if __name__ == "__main__":

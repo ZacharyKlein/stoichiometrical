@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="workspace" aria-labelledby="app-title">
+      <section class="workspace" aria-label="Stoichiometrical">
         <div class="control-panel">
           <header class="brand-lockup">
             <div class="brand-row">
@@ -19,8 +19,7 @@
               </div>
               <p class="eyebrow">Stoichiometrical</p>
             </div>
-            <h1 id="app-title">Trace every conversion.</h1>
-            <p class="intro-copy">Mass, moles, and particles stay connected through molar mass and Avogadro's number.</p>
+            <p class="intro-copy">Practice stoichiometry problems with guided inputs, visual pathways, and step-by-step math.</p>
           </header>
 
           <div class="mode-switch" aria-label="Problem mode">
@@ -63,22 +62,46 @@
 
             <div class="element-fields hidden">
               <label>
+                Question type
+                <select id="question-type" name="questionType">
+                  <option value="massPercent">Mass percent of an element</option>
+                  <option value="formulaUnits">Formula units in a sample</option>
+                </select>
+              </label>
+
+              <label class="mass-percent-field">
                 Element inside the compound
                 <input id="element" name="element" value="Cl" autocomplete="off" spellcheck="false">
               </label>
-              <div class="question-card">
-                <span>Question type</span>
-                <strong>Mass percent of an element</strong>
+
+              <div class="sample-fields hidden">
+                <label>
+                  Sample amount
+                  <input id="sample-value" name="sampleValue" value="58.44" inputmode="decimal">
+                </label>
+
+                <label>
+                  Sample unit
+                  <select id="sample-unit" name="sampleUnit">
+                    <option value="mass">Mass (g)</option>
+                    <option value="moles">Moles (mol)</option>
+                  </select>
+                </label>
               </div>
+
             </div>
 
             <button id="submit-button" type="submit">Convert</button>
           </form>
 
-          <div class="preset-row" aria-label="Example formulas">
-            <button type="button" data-mode="conversion" data-formula="H2O" data-value="18.015" data-from-unit="mass" data-to-unit="particles">H2O</button>
-            <button type="button" data-mode="conversion" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
-            <button type="button" data-mode="element" data-formula="HCl" data-element="Cl">Cl in HCl</button>
+          <div class="examples-block">
+            <h2>Examples</h2>
+            <div class="preset-row" aria-label="Example formulas">
+              <button type="button" data-mode="conversion" data-formula="H2O" data-value="18.015" data-from-unit="mass" data-to-unit="particles">H2O</button>
+              <button type="button" data-mode="conversion" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
+              <button type="button" data-mode="element" data-question-type="massPercent" data-formula="HCl" data-element="Cl">Cl in HCl</button>
+              <button type="button" data-mode="element" data-question-type="formulaUnits" data-formula="NaCl" data-sample-value="58.44" data-sample-unit="mass">NaCl units</button>
+            </div>
           </div>
 
           <div id="status" class="status" role="status"></div>
@@ -176,6 +199,29 @@
               <div class="percent-legend">
                 <span><i class="legend-dot selected"></i><strong id="element-legend">Cl</strong> in compound</span>
                 <span><i class="legend-dot remainder"></i>everything else</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="formula-units-visual" class="formula-units-section hidden" aria-label="Formula units in sample visual">
+            <div class="section-heading">
+              <h2>Sample pathway</h2>
+              <span>sample amount to moles to formula units</span>
+            </div>
+            <div class="unit-flow" aria-hidden="true">
+              <div class="flow-node">
+                <span>Sample</span>
+                <strong id="sample-flow-value">58.44 g</strong>
+              </div>
+              <div class="flow-arrow">1</div>
+              <div class="flow-node">
+                <span>Moles</span>
+                <strong id="moles-flow-value">1 mol</strong>
+              </div>
+              <div class="flow-arrow">2</div>
+              <div class="flow-node result">
+                <span>Formula units</span>
+                <strong id="units-flow-value">6.0221e+23</strong>
               </div>
             </div>
           </section>

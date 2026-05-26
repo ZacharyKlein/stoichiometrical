@@ -20,8 +20,10 @@ from stoichiometrical.conversions import (
     ConversionError,
     FormulaError,
     analyze_element_mass_percent,
+    analyze_formula_units_in_sample,
     convert_amount,
     serialize_element_analysis,
+    serialize_formula_units,
     serialize_result,
 )
 
@@ -48,6 +50,10 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
 
         if parsed_url.path == "/api/element":
             self._handle_element_analysis(parse_qs(parsed_url.query))
+            return
+
+        if parsed_url.path == "/api/formula-units":
+            self._handle_formula_units(parse_qs(parsed_url.query))
             return
 
         requested_path = (STATIC_ROOT / parsed_url.path.lstrip("/")).resolve()
@@ -88,6 +94,18 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
             return
 
         self._send_json(serialize_element_analysis(result))
+
+    def _handle_formula_units(self, params: dict) -> None:
+        try:
+            formula = _first(params, "formula", "NaCl")
+            sample_value = _parse_amount(_first(params, "sampleValue", "58.44"))
+            sample_unit = _first(params, "sampleUnit", "mass")
+            result = analyze_formula_units_in_sample(formula, sample_value, sample_unit)
+        except (FormulaError, ConversionError) as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        self._send_json(serialize_formula_units(result))
 
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")
