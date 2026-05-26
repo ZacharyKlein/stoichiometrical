@@ -23,44 +23,62 @@
             <p class="intro-copy">Mass, moles, and particles stay connected through molar mass and Avogadro's number.</p>
           </header>
 
+          <div class="mode-switch" aria-label="Problem mode">
+            <button class="active" type="button" data-mode="conversion">Unit conversion</button>
+            <button type="button" data-mode="element">Element focus</button>
+          </div>
+
           <form id="conversion-form" class="converter-form">
             <label>
               Chemical formula
               <input id="formula" name="formula" value="H2O" autocomplete="off" spellcheck="false">
             </label>
 
-            <label>
-              Amount
-              <input id="value" name="value" value="18.015" inputmode="decimal">
-            </label>
-
-            <div class="unit-grid">
+            <div class="conversion-fields">
               <label>
-                From
-                <select id="from-unit" name="fromUnit">
-                  <option value="mass">Mass (g)</option>
-                  <option value="moles">Moles (mol)</option>
-                  <option value="particles">Particles / atoms</option>
-                </select>
+                Amount
+                <input id="value" name="value" value="18.015" inputmode="decimal">
               </label>
 
-              <label>
-                To
-                <select id="to-unit" name="toUnit">
-                  <option value="particles">Particles / atoms</option>
-                  <option value="moles">Moles (mol)</option>
-                  <option value="mass">Mass (g)</option>
-                </select>
-              </label>
+              <div class="unit-grid">
+                <label>
+                  From
+                  <select id="from-unit" name="fromUnit">
+                    <option value="mass">Mass (g)</option>
+                    <option value="moles">Moles (mol)</option>
+                    <option value="particles">Particles / atoms</option>
+                  </select>
+                </label>
+
+                <label>
+                  To
+                  <select id="to-unit" name="toUnit">
+                    <option value="particles">Particles / atoms</option>
+                    <option value="moles">Moles (mol)</option>
+                    <option value="mass">Mass (g)</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
-            <button type="submit">Convert</button>
+            <div class="element-fields hidden">
+              <label>
+                Element inside the compound
+                <input id="element" name="element" value="Cl" autocomplete="off" spellcheck="false">
+              </label>
+              <div class="question-card">
+                <span>Question type</span>
+                <strong>Mass percent of an element</strong>
+              </div>
+            </div>
+
+            <button id="submit-button" type="submit">Convert</button>
           </form>
 
           <div class="preset-row" aria-label="Example formulas">
-            <button type="button" data-formula="H2O" data-value="18.015" data-from-unit="mass" data-to-unit="particles">H2O</button>
-            <button type="button" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
-            <button type="button" data-formula="Ca(OH)2" data-value="2" data-from-unit="moles" data-to-unit="mass">Ca(OH)2</button>
+            <button type="button" data-mode="conversion" data-formula="H2O" data-value="18.015" data-from-unit="mass" data-to-unit="particles">H2O</button>
+            <button type="button" data-mode="conversion" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
+            <button type="button" data-mode="element" data-formula="HCl" data-element="Cl">Cl in HCl</button>
           </div>
 
           <div id="status" class="status" role="status"></div>
@@ -70,7 +88,7 @@
           <section class="result-band" aria-label="Conversion result">
             <div class="result-primary">
               <div class="result-topline">
-                <span class="result-label">Result</span>
+                <span id="result-label" class="result-label">Result</span>
                 <span id="formula-chip" class="formula-chip">H2O</span>
               </div>
               <strong id="result-value">6.0221e+23</strong>
@@ -78,17 +96,17 @@
             </div>
             <dl>
               <div>
-                <dt>Molar mass</dt>
+                <dt id="metric-one-label">Molar mass</dt>
                 <dd id="molar-mass">18.015 g/mol</dd>
               </div>
               <div>
-                <dt>Total atoms</dt>
+                <dt id="metric-two-label">Total atoms</dt>
                 <dd id="total-atoms">1.8066e+24</dd>
               </div>
             </dl>
           </section>
 
-          <section class="map-section" aria-label="Conversion relationship map">
+          <section id="conversion-visual" class="map-section" aria-label="Conversion relationship map">
             <div class="section-heading">
               <h2>Conversion map</h2>
               <span>molar mass and Avogadro's number</span>
@@ -142,6 +160,24 @@
                 <text x="58" y="78">atoms</text>
               </g>
             </svg>
+          </section>
+
+          <section id="element-visual" class="element-section hidden" aria-label="Element mass percent visual">
+            <div class="section-heading">
+              <h2>Element share</h2>
+              <span>part mass divided by whole compound mass</span>
+            </div>
+            <div class="percent-panel">
+              <div class="percent-track" aria-hidden="true">
+                <div id="element-percent-fill" class="percent-fill">
+                  <span id="element-percent-label">97.24%</span>
+                </div>
+              </div>
+              <div class="percent-legend">
+                <span><i class="legend-dot selected"></i><strong id="element-legend">Cl</strong> in compound</span>
+                <span><i class="legend-dot remainder"></i>everything else</span>
+              </div>
+            </div>
           </section>
 
           <section class="details-section">

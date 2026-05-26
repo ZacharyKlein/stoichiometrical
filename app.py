@@ -19,7 +19,9 @@ from urllib.parse import parse_qs, urlparse
 from stoichiometrical.conversions import (
     ConversionError,
     FormulaError,
+    analyze_element_mass_percent,
     convert_amount,
+    serialize_element_analysis,
     serialize_result,
 )
 
@@ -42,6 +44,10 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
 
         if parsed_url.path == "/api/convert":
             self._handle_convert(parse_qs(parsed_url.query))
+            return
+
+        if parsed_url.path == "/api/element":
+            self._handle_element_analysis(parse_qs(parsed_url.query))
             return
 
         requested_path = (STATIC_ROOT / parsed_url.path.lstrip("/")).resolve()
@@ -71,6 +77,17 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
             return
 
         self._send_json(serialize_result(result))
+
+    def _handle_element_analysis(self, params: dict) -> None:
+        try:
+            formula = _first(params, "formula", "HCl")
+            element = _first(params, "element", "Cl")
+            result = analyze_element_mass_percent(formula, element)
+        except (FormulaError, ConversionError) as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        self._send_json(serialize_element_analysis(result))
 
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")

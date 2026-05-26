@@ -3,8 +3,10 @@ import unittest
 from stoichiometrical.conversions import (
     FormulaError,
     AVOGADRO_NUMBER,
+    analyze_element_mass_percent,
     convert_amount,
     parse_formula,
+    serialize_element_analysis,
     serialize_result,
 )
 
@@ -50,6 +52,23 @@ class ConversionTests(unittest.TestCase):
         self.assertIn("molarMass", payload)
         self.assertIn("totalAtoms", payload)
         self.assertNotIn("molar_mass", payload)
+
+
+class ElementAnalysisTests(unittest.TestCase):
+    def test_mass_percent_of_chlorine_in_hcl(self):
+        result = analyze_element_mass_percent("HCl", "Cl")
+        self.assertAlmostEqual(result.mass_percent, 97.235, places=3)
+        self.assertEqual([step.title for step in result.steps], ["Find Cl mass", "Compare to molar mass"])
+
+    def test_rejects_element_not_in_formula(self):
+        with self.assertRaisesRegex(ValueError, "not present"):
+            analyze_element_mass_percent("H2O", "Cl")
+
+    def test_serialized_element_analysis_shape_matches_frontend(self):
+        payload = serialize_element_analysis(analyze_element_mass_percent("HCl", "cl"))
+        self.assertEqual(payload["element"], "Cl")
+        self.assertIn("massPercent", payload)
+        self.assertIn("elementMass", payload)
 
 
 if __name__ == "__main__":

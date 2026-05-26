@@ -140,6 +140,22 @@ class ConversionResult:
     total_atoms: float
 
 
+@dataclass(frozen=True)
+class ElementAnalysisResult:
+    """Mass-percent details for one element inside a compound."""
+
+    formula: str
+    element: str
+    composition: Dict[str, int]
+    molar_mass: float
+    element_count: int
+    atomic_mass: float
+    element_mass: float
+    mass_percent: float
+    remainder_percent: float
+    steps: List[ConversionStep]
+
+
 class FormulaError(ValueError):
     """Raised when a chemical formula cannot be parsed."""
 
@@ -195,6 +211,18 @@ def molar_mass_for(formula: str) -> Tuple[float, Dict[str, int]]:
     return mass, composition
 
 
+def normalize_element_symbol(symbol: str) -> str:
+    """Normalize an element symbol such as 'cl' into 'Cl'."""
+
+    cleaned = symbol.strip()
+    if not cleaned:
+        raise FormulaError("Enter an element symbol, such as Cl or O.")
+    normalized = cleaned[0].upper() + cleaned[1:].lower()
+    if normalized not in ATOMIC_MASSES:
+        raise FormulaError(f"Unknown element symbol: {normalized}.")
+    return normalized
+
+
 def convert_amount(
     formula: str,
     value: float,
@@ -243,6 +271,57 @@ def convert_amount(
     )
 
 
+def analyze_element_mass_percent(formula: str, element: str) -> ElementAnalysisResult:
+    """Find the mass percent of an element in a compound."""
+
+    molar_mass, composition = molar_mass_for(formula)
+    element_symbol = normalize_element_symbol(element)
+    element_count = composition.get(element_symbol, 0)
+
+    if element_count == 0:
+        raise ConversionError(f"{element_symbol} is not present in {normalize_formula(formula)}.")
+
+    atomic_mass = ATOMIC_MASSES[element_symbol]
+    element_mass = element_count * atomic_mass
+    mass_percent = element_mass / molar_mass * 100
+    remainder_percent = 100 - mass_percent
+    steps = [
+        ConversionStep(
+            title=f"Find {element_symbol} mass",
+            expression=(
+                f"{element_count} atom(s) {element_symbol} x "
+                f"{format_number(atomic_mass)} g/mol"
+            ),
+            result=element_mass,
+            unit=f"g {element_symbol} per mol compound",
+            color="green",
+        ),
+        ConversionStep(
+            title="Compare to molar mass",
+            expression=(
+                f"{format_number(element_mass)} g {element_symbol} / "
+                f"{format_number(molar_mass)} g compound x 100"
+            ),
+            result=mass_percent,
+            unit=f"% {element_symbol} by mass",
+            color="orange",
+        ),
+    ]
+
+    return ElementAnalysisResult(
+        formula=normalize_formula(formula),
+        element=element_symbol,
+        composition=composition,
+        molar_mass=molar_mass,
+        element_count=element_count,
+        atomic_mass=atomic_mass,
+        element_mass=element_mass,
+        mass_percent=mass_percent,
+        remainder_percent=remainder_percent,
+        steps=steps,
+    )
+
+
 def serialize_result(result: ConversionResult) -> Dict[str, object]:
     """Convert dataclasses into JSON-friendly dictionaries."""
 
@@ -266,6 +345,32 @@ def serialize_result(result: ConversionResult) -> Dict[str, object]:
             for step in result.steps
         ],
         "totalAtoms": result.total_atoms,
+    }
+
+
+def serialize_element_analysis(result: ElementAnalysisResult) -> Dict[str, object]:
+    """Convert element-analysis output into a frontend-friendly payload."""
+
+    return {
+        "formula": result.formula,
+        "element": result.element,
+        "composition": result.composition,
+        "molarMass": result.molar_mass,
+        "elementCount": result.element_count,
+        "atomicMass": result.atomic_mass,
+        "elementMass": result.element_mass,
+        "massPercent": result.mass_percent,
+        "remainderPercent": result.remainder_percent,
+        "steps": [
+            {
+                "title": step.title,
+                "expression": step.expression,
+                "result": step.result,
+                "unit": step.unit,
+                "color": step.color,
+            }
+            for step in result.steps
+        ],
     }
 
 

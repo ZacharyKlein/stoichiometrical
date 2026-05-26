@@ -3,6 +3,8 @@
 Stoichiometrical is a small Python-based web app for learning stoichiometric
 unit conversions. It converts between mass, moles, and particles while showing
 each intermediate step and highlighting the relationship map used to get there.
+It also includes an element-focus mode for percent-composition questions, such
+as finding the mass percent of `Cl` in `HCl`.
 
 ## Run
 
@@ -24,6 +26,8 @@ python3 -m unittest discover -s tests
 - Particles use Avogadro's number: `particles / 6.02214076e23 = moles`.
 - Every conversion passes through moles, so students can see the bridge between
   grams and particles.
+- Element mass percent compares one element's mass contribution to the full
+  molar mass: `(element mass / compound molar mass) x 100`.
 
 The formula parser supports common classroom formulas such as `H2O`, `CO2`,
 `Ca(OH)2`, `Al2(SO4)3`, and hydrate notation like `CuSO4.5H2O`.
