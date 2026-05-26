@@ -5,12 +5,14 @@ Run with:
     python3 app.py
 
 Then open http://127.0.0.1:8000 in a browser.
+On Render, the server uses the platform-provided host and port.
 """
 
 from __future__ import annotations
 
 import json
 import mimetypes
+import os
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,8 +32,9 @@ from stoichiometrical.conversions import (
 
 ROOT = Path(__file__).parent.resolve()
 STATIC_ROOT = ROOT / "static"
-HOST = "127.0.0.1"
-PORT = 8000
+IS_RENDER = os.environ.get("RENDER") == "true"
+HOST = os.environ.get("HOST", "0.0.0.0" if IS_RENDER else "127.0.0.1")
+PORT = int(os.environ.get("PORT", "8000"))
 
 
 class StoichiometricalHandler(SimpleHTTPRequestHandler):
