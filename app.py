@@ -24,6 +24,8 @@ from stoichiometrical.conversions import (
     analyze_element_mass_percent,
     analyze_formula_units_in_sample,
     convert_amount,
+    determine_empirical_formula,
+    serialize_empirical_formula,
     serialize_element_analysis,
     serialize_formula_units,
     serialize_result,
@@ -57,6 +59,10 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
 
         if parsed_url.path == "/api/formula-units":
             self._handle_formula_units(parse_qs(parsed_url.query))
+            return
+
+        if parsed_url.path == "/api/empirical-formula":
+            self._handle_empirical_formula(parse_qs(parsed_url.query))
             return
 
         requested_path = (STATIC_ROOT / parsed_url.path.lstrip("/")).resolve()
@@ -110,6 +116,19 @@ class StoichiometricalHandler(SimpleHTTPRequestHandler):
 
         self._send_json(serialize_formula_units(result))
 
+    def _handle_empirical_formula(self, params: dict) -> None:
+        try:
+            composition_unit = _first(params, "compositionUnit", "percent")
+            elements = params.get("empiricalElement", [])
+            raw_values = params.get("empiricalValue", [])
+            entries = _parse_empirical_entries(elements, raw_values)
+            result = determine_empirical_formula(entries, composition_unit)
+        except (FormulaError, ConversionError) as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        self._send_json(serialize_empirical_formula(result))
+
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -140,6 +159,21 @@ def _parse_amount(raw_value: str) -> float:
         return float(raw_value)
     except ValueError as exc:
         raise ConversionError("Enter the amount as a number.") from exc
+
+
+def _parse_empirical_entries(elements: list[str], raw_values: list[str]) -> list[tuple[str, float]]:
+    if len(elements) != len(raw_values):
+        raise ConversionError("Each empirical-formula row needs an element and an amount.")
+
+    entries = []
+    for element, raw_value in zip(elements, raw_values):
+        if not element.strip() and not raw_value.strip():
+            continue
+        if not element.strip() or not raw_value.strip():
+            raise ConversionError("Each empirical-formula row needs an element and an amount.")
+        entries.append((element, _parse_amount(raw_value)))
+
+    return entries
 
 
 def run() -> None:

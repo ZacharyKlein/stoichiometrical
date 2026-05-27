@@ -11,19 +11,26 @@ const compositionNode = document.querySelector("#composition");
 const stepsNode = document.querySelector("#steps");
 const formulaChip = document.querySelector("#formula-chip");
 const submitButton = document.querySelector("#submit-button");
+const formulaField = document.querySelector(".formula-field");
 const conversionFields = document.querySelector(".conversion-fields");
 const elementFields = document.querySelector(".element-fields");
+const empiricalFields = document.querySelector(".empirical-fields");
+const empiricalRows = document.querySelector("#empirical-rows");
+const addEmpiricalRowButton = document.querySelector("#add-empirical-row");
 const massPercentField = document.querySelector(".mass-percent-field");
 const sampleFields = document.querySelector(".sample-fields");
 const conversionVisual = document.querySelector("#conversion-visual");
 const elementVisual = document.querySelector("#element-visual");
 const formulaUnitsVisual = document.querySelector("#formula-units-visual");
+const empiricalVisual = document.querySelector("#empirical-visual");
+const empiricalRatioBars = document.querySelector("#empirical-ratio-bars");
 const elementPercentFill = document.querySelector("#element-percent-fill");
 const elementPercentLabel = document.querySelector("#element-percent-label");
 const elementLegend = document.querySelector("#element-legend");
 const sampleFlowValue = document.querySelector("#sample-flow-value");
 const molesFlowValue = document.querySelector("#moles-flow-value");
 const unitsFlowValue = document.querySelector("#units-flow-value");
+const compositionTitle = document.querySelector("#composition-title");
 const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 let activeMode = "conversion";
 let latestRequestId = 0;
@@ -42,10 +49,7 @@ form.addEventListener("submit", (event) => {
 
 // Recalculate as soon as a control changes so the visuals stay in sync.
 for (const control of form.elements) {
-  control.addEventListener("change", updateCurrentMode);
-  if (control.tagName === "INPUT") {
-    control.addEventListener("input", updateCurrentMode);
-  }
+  attachLiveUpdate(control);
 }
 
 document.querySelectorAll(".mode-switch button").forEach((button) => {
@@ -57,12 +61,13 @@ document.querySelectorAll(".mode-switch button").forEach((button) => {
 document.querySelectorAll(".preset-row button").forEach((button) => {
   button.addEventListener("click", () => {
     setMode(button.dataset.mode, false);
-    form.elements.namedItem("formula").value = button.dataset.formula;
     if (button.dataset.mode === "conversion") {
+      form.elements.namedItem("formula").value = button.dataset.formula;
       form.elements.namedItem("value").value = button.dataset.value;
       form.elements.namedItem("fromUnit").value = button.dataset.fromUnit;
       form.elements.namedItem("toUnit").value = button.dataset.toUnit;
-    } else {
+    } else if (button.dataset.mode === "element") {
+      form.elements.namedItem("formula").value = button.dataset.formula;
       form.elements.namedItem("questionType").value = button.dataset.questionType;
       if (button.dataset.questionType === "massPercent") {
         form.elements.namedItem("element").value = button.dataset.element;
@@ -70,13 +75,43 @@ document.querySelectorAll(".preset-row button").forEach((button) => {
         form.elements.namedItem("sampleValue").value = button.dataset.sampleValue;
         form.elements.namedItem("sampleUnit").value = button.dataset.sampleUnit;
       }
+    } else {
+      form.elements.namedItem("compositionUnit").value = button.dataset.compositionUnit;
+      setEmpiricalRows(button.dataset.elements.split(","), button.dataset.values.split(","));
     }
     updateCurrentMode();
   });
 });
 
+addEmpiricalRowButton.addEventListener("click", () => {
+  addEmpiricalRow("", "");
+  updateRemoveRowButtons();
+  updateCurrentMode();
+});
+
+empiricalRows.addEventListener("click", (event) => {
+  if (!event.target.classList.contains("remove-row")) {
+    return;
+  }
+
+  if (empiricalRows.querySelectorAll(".empirical-row").length <= 2) {
+    return;
+  }
+
+  event.target.closest(".empirical-row").remove();
+  updateRemoveRowButtons();
+  updateCurrentMode();
+});
+
 applyInitialQueryValues();
 setMode(activeMode, false);
+
+function attachLiveUpdate(control) {
+  control.addEventListener("change", updateCurrentMode);
+  if (control.tagName === "INPUT") {
+    control.addEventListener("input", updateCurrentMode);
+  }
+}
 
 function formatNumber(value) {
   if (value === 0) {
@@ -96,6 +131,11 @@ function formatPercent(value) {
 }
 
 async function updateCurrentMode() {
+  if (activeMode === "empirical") {
+    await updateEmpiricalFormula();
+    return;
+  }
+
   if (activeMode === "element") {
     updateFocusedProblemFields();
     if (currentQuestionType() === "formulaUnits") {
@@ -121,7 +161,7 @@ async function updateConversion() {
     response = await fetch(`${apiBase}/api/convert?${params.toString()}`);
     payload = await response.json();
   } catch (error) {
-    statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    showError("Start the Python server with python3 app.py, then refresh this page.");
     return;
   }
 
@@ -130,7 +170,7 @@ async function updateConversion() {
   }
 
   if (!response.ok) {
-    statusNode.textContent = payload.error || "Something went wrong.";
+    showError(payload.error || "Something went wrong.");
     return;
   }
 
@@ -142,6 +182,10 @@ function applyInitialQueryValues() {
 
   if (params.get("mode") === "element") {
     activeMode = "element";
+  }
+
+  if (params.get("mode") === "empirical") {
+    activeMode = "empirical";
   }
 
   if (params.has("questionType")) {
@@ -157,19 +201,27 @@ function applyInitialQueryValues() {
 }
 
 function setMode(mode, shouldUpdate = true) {
-  activeMode = mode === "element" ? "element" : "conversion";
+  activeMode = ["conversion", "element", "empirical"].includes(mode) ? mode : "conversion";
 
   document.querySelectorAll(".mode-switch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === activeMode);
   });
 
   const isElementMode = activeMode === "element";
-  conversionFields.classList.toggle("hidden", isElementMode);
-  conversionVisual.classList.toggle("hidden", isElementMode);
+  const isEmpiricalMode = activeMode === "empirical";
+  formulaField.classList.toggle("hidden", isEmpiricalMode);
+  conversionFields.classList.toggle("hidden", activeMode !== "conversion");
+  conversionVisual.classList.toggle("hidden", activeMode !== "conversion");
   elementFields.classList.toggle("hidden", !isElementMode);
+  empiricalFields.classList.toggle("hidden", !isEmpiricalMode);
   elementVisual.classList.toggle("hidden", true);
   formulaUnitsVisual.classList.toggle("hidden", true);
-  submitButton.textContent = isElementMode ? "Solve focused problem" : "Convert";
+  empiricalVisual.classList.toggle("hidden", true);
+  submitButton.textContent = isElementMode
+    ? "Solve focused problem"
+    : isEmpiricalMode
+      ? "Find empirical formula"
+      : "Convert";
 
   if (
     isElementMode &&
@@ -180,6 +232,7 @@ function setMode(mode, shouldUpdate = true) {
   }
 
   updateFocusedProblemFields();
+  updateRemoveRowButtons();
 
   if (shouldUpdate) {
     updateCurrentMode();
@@ -209,8 +262,10 @@ function renderResult(payload) {
   renderComposition(payload.composition);
   renderSteps(payload.steps);
   highlightMap(payload);
+  compositionTitle.textContent = "Formula breakdown";
   elementVisual.classList.add("hidden");
   formulaUnitsVisual.classList.add("hidden");
+  empiricalVisual.classList.add("hidden");
   updatePresetState({
     mode: "conversion",
     formula: payload.formula,
@@ -231,7 +286,7 @@ async function updateElementAnalysis() {
     response = await fetch(`${apiBase}/api/element?${params.toString()}`);
     payload = await response.json();
   } catch (error) {
-    statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    showError("Start the Python server with python3 app.py, then refresh this page.");
     return;
   }
 
@@ -240,7 +295,7 @@ async function updateElementAnalysis() {
   }
 
   if (!response.ok) {
-    statusNode.textContent = payload.error || "Something went wrong.";
+    showError(payload.error || "Something went wrong.");
     return;
   }
 
@@ -260,8 +315,10 @@ function renderElementAnalysis(payload) {
   renderComposition(payload.composition, payload.element);
   renderSteps(payload.steps);
   renderElementVisual(payload);
+  compositionTitle.textContent = "Formula breakdown";
   elementVisual.classList.remove("hidden");
   formulaUnitsVisual.classList.add("hidden");
+  empiricalVisual.classList.add("hidden");
   updatePresetState({
     mode: "element",
     questionType: "massPercent",
@@ -282,7 +339,7 @@ async function updateFormulaUnits() {
     response = await fetch(`${apiBase}/api/formula-units?${params.toString()}`);
     payload = await response.json();
   } catch (error) {
-    statusNode.textContent = "Start the Python server with python3 app.py, then refresh this page.";
+    showError("Start the Python server with python3 app.py, then refresh this page.");
     return;
   }
 
@@ -291,7 +348,7 @@ async function updateFormulaUnits() {
   }
 
   if (!response.ok) {
-    statusNode.textContent = payload.error || "Something went wrong.";
+    showError(payload.error || "Something went wrong.");
     return;
   }
 
@@ -311,13 +368,67 @@ function renderFormulaUnits(payload) {
   renderComposition(payload.composition);
   renderSteps(payload.steps);
   renderFormulaUnitsVisual(payload);
+  compositionTitle.textContent = "Formula breakdown";
   elementVisual.classList.add("hidden");
   formulaUnitsVisual.classList.remove("hidden");
+  empiricalVisual.classList.add("hidden");
   updatePresetState({
     mode: "element",
     questionType: "formulaUnits",
     formula: payload.formula,
     sampleUnit: payload.sampleUnit,
+  });
+}
+
+async function updateEmpiricalFormula() {
+  statusNode.textContent = "";
+  const requestId = ++latestRequestId;
+
+  const params = new URLSearchParams(new FormData(form));
+  let response;
+  let payload;
+
+  try {
+    response = await fetch(`${apiBase}/api/empirical-formula?${params.toString()}`);
+    payload = await response.json();
+  } catch (error) {
+    showError("Start the Python server with python3 app.py, then refresh this page.");
+    return;
+  }
+
+  if (requestId !== latestRequestId) {
+    return;
+  }
+
+  if (!response.ok) {
+    showError(payload.error || "Something went wrong.");
+    return;
+  }
+
+  renderEmpiricalFormula(payload);
+}
+
+function renderEmpiricalFormula(payload) {
+  resultLabel.textContent = "Empirical formula";
+  formulaChip.textContent = payload.compositionUnit;
+  resultValue.textContent = payload.formula;
+  resultUnit.textContent = "simplest whole-number ratio";
+  metricOneLabel.textContent = "Smallest moles";
+  metricTwoLabel.textContent = "Multiplier";
+  molarMass.textContent = `${formatNumber(payload.smallestMoles)} mol`;
+  totalAtoms.textContent = `x ${payload.multiplier}`;
+
+  renderComposition(payload.composition);
+  renderSteps(payload.steps);
+  renderEmpiricalVisual(payload);
+  compositionTitle.textContent = "Empirical ratio";
+  elementVisual.classList.add("hidden");
+  formulaUnitsVisual.classList.add("hidden");
+  empiricalVisual.classList.remove("hidden");
+  updatePresetState({
+    mode: "empirical",
+    formula: payload.formula,
+    compositionUnit: payload.compositionUnit,
   });
 }
 
@@ -350,10 +461,54 @@ function renderSteps(steps) {
 
     const result = document.createElement("div");
     result.className = "step-result";
-    result.textContent = `= ${formatNumber(step.result)} ${step.unit}`;
+    result.textContent = step.displayResult || `= ${formatNumber(step.result)} ${step.unit}`;
 
     item.append(title, expression, result);
     stepsNode.append(item);
+  }
+}
+
+function showError(message) {
+  statusNode.textContent = message;
+  resultLabel.textContent = "Needs attention";
+  formulaChip.textContent = activeMode;
+  resultValue.textContent = "--";
+  resultUnit.textContent = "no current result";
+  metricOneLabel.textContent = "Status";
+  metricTwoLabel.textContent = "Mode";
+  molarMass.textContent = "Request failed";
+  totalAtoms.textContent = activeMode;
+  compositionTitle.textContent = "Formula breakdown";
+  compositionNode.replaceChildren();
+  stepsNode.replaceChildren();
+  elementVisual.classList.add("hidden");
+  formulaUnitsVisual.classList.add("hidden");
+  empiricalVisual.classList.add("hidden");
+}
+
+function renderEmpiricalVisual(payload) {
+  empiricalRatioBars.replaceChildren();
+  const maxWholeNumber = Math.max(...payload.entries.map((entry) => entry.wholeNumber));
+
+  for (const entry of payload.entries) {
+    const row = document.createElement("div");
+    row.className = "ratio-bar-row";
+
+    const symbol = document.createElement("strong");
+    symbol.textContent = entry.element;
+
+    const track = document.createElement("div");
+    track.className = "ratio-track";
+
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.max(8, (entry.wholeNumber / maxWholeNumber) * 100)}%`;
+    track.append(fill);
+
+    const value = document.createElement("em");
+    value.textContent = `${formatNumber(entry.ratio)} -> ${entry.wholeNumber}`;
+
+    row.append(symbol, track, value);
+    empiricalRatioBars.append(row);
   }
 }
 
@@ -417,7 +572,47 @@ function updatePresetState(payload) {
           : button.dataset.sampleUnit === payload.sampleUnit);
     }
 
+    if (payload.mode === "empirical") {
+      isActive =
+        button.dataset.mode === "empirical" &&
+        button.textContent === payload.formula &&
+        button.dataset.compositionUnit === payload.compositionUnit;
+    }
+
     button.classList.toggle("active", isActive);
+  });
+}
+
+function setEmpiricalRows(elements, values) {
+  empiricalRows.replaceChildren();
+  elements.forEach((element, index) => {
+    addEmpiricalRow(element, values[index] || "");
+  });
+  updateRemoveRowButtons();
+}
+
+function addEmpiricalRow(element, value) {
+  const row = document.createElement("div");
+  row.className = "empirical-row";
+  row.innerHTML = `
+    <label>
+      Element
+      <input name="empiricalElement" value="${element}" autocomplete="off" spellcheck="false">
+    </label>
+    <label>
+      Amount
+      <input name="empiricalValue" value="${value}" inputmode="decimal">
+    </label>
+    <button class="remove-row" type="button" aria-label="Remove element">-</button>
+  `;
+  row.querySelectorAll("input").forEach(attachLiveUpdate);
+  empiricalRows.append(row);
+}
+
+function updateRemoveRowButtons() {
+  const rows = empiricalRows.querySelectorAll(".empirical-row");
+  rows.forEach((row) => {
+    row.querySelector(".remove-row").disabled = rows.length <= 2;
   });
 }
 

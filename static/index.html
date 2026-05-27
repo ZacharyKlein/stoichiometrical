@@ -42,10 +42,11 @@
           <div class="mode-switch" aria-label="Problem mode">
             <button class="active" type="button" data-mode="conversion">Unit conversion</button>
             <button type="button" data-mode="element">Element focus</button>
+            <button type="button" data-mode="empirical">Empirical formula</button>
           </div>
 
           <form id="conversion-form" class="converter-form">
-            <label>
+            <label class="formula-field">
               Chemical formula
               <input id="formula" name="formula" value="H2O" autocomplete="off" spellcheck="false">
             </label>
@@ -108,6 +109,55 @@
 
             </div>
 
+            <div class="empirical-fields hidden">
+              <label>
+                Composition given as
+                <select id="composition-unit" name="compositionUnit">
+                  <option value="percent">Percent (%)</option>
+                  <option value="mass">Mass (g)</option>
+                  <option value="moles">Moles (mol)</option>
+                </select>
+              </label>
+
+              <div id="empirical-rows" class="empirical-rows" aria-label="Element compositions">
+                <div class="empirical-row">
+                  <label>
+                    Element
+                    <input name="empiricalElement" value="C" autocomplete="off" spellcheck="false">
+                  </label>
+                  <label>
+                    Amount
+                    <input name="empiricalValue" value="40.00" inputmode="decimal">
+                  </label>
+                  <button class="remove-row" type="button" aria-label="Remove element">-</button>
+                </div>
+                <div class="empirical-row">
+                  <label>
+                    Element
+                    <input name="empiricalElement" value="H" autocomplete="off" spellcheck="false">
+                  </label>
+                  <label>
+                    Amount
+                    <input name="empiricalValue" value="6.72" inputmode="decimal">
+                  </label>
+                  <button class="remove-row" type="button" aria-label="Remove element">-</button>
+                </div>
+                <div class="empirical-row">
+                  <label>
+                    Element
+                    <input name="empiricalElement" value="O" autocomplete="off" spellcheck="false">
+                  </label>
+                  <label>
+                    Amount
+                    <input name="empiricalValue" value="53.28" inputmode="decimal">
+                  </label>
+                  <button class="remove-row" type="button" aria-label="Remove element">-</button>
+                </div>
+              </div>
+
+              <button id="add-empirical-row" class="secondary-button" type="button">Add element</button>
+            </div>
+
             <button id="submit-button" type="submit">Convert</button>
           </form>
 
@@ -118,6 +168,8 @@
               <button type="button" data-mode="conversion" data-formula="CO2" data-value="44.009" data-from-unit="mass" data-to-unit="moles">CO2</button>
               <button type="button" data-mode="element" data-question-type="massPercent" data-formula="HCl" data-element="Cl">Cl in HCl</button>
               <button type="button" data-mode="element" data-question-type="formulaUnits" data-formula="NaCl" data-sample-value="58.44" data-sample-unit="mass">NaCl units</button>
+              <button type="button" data-mode="empirical" data-composition-unit="percent" data-elements="C,H,O" data-values="40.00,6.72,53.28">CH2O</button>
+              <button type="button" data-mode="empirical" data-composition-unit="mass" data-elements="Fe,O" data-values="69.94,30.06">Fe2O3</button>
             </div>
           </div>
 
@@ -243,9 +295,17 @@
             </div>
           </section>
 
+          <section id="empirical-visual" class="empirical-section hidden" aria-label="Empirical formula ratio visual">
+            <div class="section-heading">
+              <h2>Mole ratio</h2>
+              <span>divide by the smallest mole amount</span>
+            </div>
+            <div id="empirical-ratio-bars" class="ratio-bars" aria-hidden="true"></div>
+          </section>
+
           <section class="details-section">
             <div>
-              <h2>Formula breakdown</h2>
+              <h2 id="composition-title">Formula breakdown</h2>
               <div id="composition" class="composition-list"></div>
             </div>
             <div>

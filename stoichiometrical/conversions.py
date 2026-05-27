@@ -8,6 +8,7 @@ and easy to read. Units are intentionally simple: grams, moles, and particles
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import gcd
 from typing import Dict, Iterable, List, Tuple
 
 
@@ -112,6 +113,12 @@ UNIT_LABELS = {
     "particles": "particles",
 }
 
+EMPIRICAL_UNIT_LABELS = {
+    "mass": "grams",
+    "moles": "moles",
+    "percent": "percent",
+}
+
 
 @dataclass(frozen=True)
 class ConversionStep:
@@ -122,6 +129,7 @@ class ConversionStep:
     result: float
     unit: str
     color: str
+    display_result: str | None = None
 
 
 @dataclass(frozen=True)
@@ -167,6 +175,32 @@ class FormulaUnitsResult:
     sample_unit: str
     sample_moles: float
     formula_units: float
+    steps: List[ConversionStep]
+
+
+@dataclass(frozen=True)
+class EmpiricalComposition:
+    """One element amount used to derive an empirical formula."""
+
+    element: str
+    amount: float
+    amount_unit: str
+    atomic_mass: float
+    moles: float
+    ratio: float
+    whole_number: int
+
+
+@dataclass(frozen=True)
+class EmpiricalFormulaResult:
+    """Empirical formula details from element compositions."""
+
+    formula: str
+    composition: Dict[str, int]
+    composition_unit: str
+    entries: List[EmpiricalComposition]
+    smallest_moles: float
+    multiplier: int
     steps: List[ConversionStep]
 
 
@@ -403,6 +437,133 @@ def analyze_formula_units_in_sample(
     )
 
 
+def determine_empirical_formula(
+    raw_entries: List[Tuple[str, float]],
+    composition_unit: str,
+) -> EmpiricalFormulaResult:
+    """Find the simplest whole-number formula from element amounts.
+
+    Percent composition is treated as grams in a 100 g sample, which is the
+    standard shortcut used in classroom empirical-formula problems.
+    """
+
+    if composition_unit not in EMPIRICAL_UNIT_LABELS:
+        raise ConversionError("Choose grams, moles, or percent for the composition data.")
+    if len(raw_entries) < 2:
+        raise ConversionError("Enter at least two element compositions.")
+
+    seen_elements = set()
+    prepared_entries = []
+    moles_by_element = []
+
+    for raw_symbol, amount in raw_entries:
+        element = normalize_element_symbol(raw_symbol)
+        if element in seen_elements:
+            raise ConversionError(f"Enter {element} only once.")
+        if amount <= 0:
+            raise ConversionError("Enter composition amounts greater than zero.")
+
+        seen_elements.add(element)
+        atomic_mass = ATOMIC_MASSES[element]
+        if composition_unit == "moles":
+            moles = amount
+        else:
+            moles = amount / atomic_mass
+        prepared_entries.append((element, amount, atomic_mass, moles))
+        moles_by_element.append(moles)
+
+    smallest_moles = min(moles_by_element)
+    raw_ratios = [moles / smallest_moles for moles in moles_by_element]
+    multiplier = _nearest_integer_multiplier(raw_ratios)
+    whole_numbers = [max(1, int(round(ratio * multiplier))) for ratio in raw_ratios]
+    whole_numbers = _reduce_whole_numbers(whole_numbers)
+
+    entries = [
+        EmpiricalComposition(
+            element=element,
+            amount=amount,
+            amount_unit=composition_unit,
+            atomic_mass=atomic_mass,
+            moles=moles,
+            ratio=ratio,
+            whole_number=whole_number,
+        )
+        for (element, amount, atomic_mass, moles), ratio, whole_number in zip(
+            prepared_entries,
+            raw_ratios,
+            whole_numbers,
+        )
+    ]
+    composition = {entry.element: entry.whole_number for entry in entries}
+    formula = _format_empirical_formula(entries)
+    unit_label = "g" if composition_unit == "mass" else ("mol" if composition_unit == "moles" else "%")
+    mole_lines = []
+    ratio_lines = []
+    whole_lines = []
+
+    for entry in entries:
+        if composition_unit == "moles":
+            mole_lines.append(f"{entry.element}: {format_number(entry.amount)} mol")
+        else:
+            mole_lines.append(
+                f"{entry.element}: {format_number(entry.amount)} {unit_label} / "
+                f"{format_number(entry.atomic_mass)} g/mol = {format_number(entry.moles)} mol"
+            )
+        ratio_lines.append(
+            f"{entry.element}: {format_number(entry.moles)} / "
+            f"{format_number(smallest_moles)} = {format_number(entry.ratio)}"
+        )
+        whole_lines.append(f"{entry.element}: {entry.whole_number}")
+
+    conversion_title = "Use given moles" if composition_unit == "moles" else "Convert each element to moles"
+    conversion_result = "; ".join(
+        f"{entry.element} {format_number(entry.moles)} mol" for entry in entries
+    )
+    ratio_result = " : ".join(format_number(entry.ratio) for entry in entries)
+    whole_result = " : ".join(str(entry.whole_number) for entry in entries)
+
+    steps = [
+        ConversionStep(
+            title=conversion_title,
+            expression="; ".join(mole_lines),
+            result=0,
+            unit="",
+            color="green",
+            display_result=conversion_result,
+        ),
+        ConversionStep(
+            title="Divide by the smallest mole value",
+            expression="; ".join(ratio_lines),
+            result=0,
+            unit="",
+            color="orange",
+            display_result=ratio_result,
+        ),
+        ConversionStep(
+            title="Scale to whole numbers",
+            expression=(
+                f"multiply ratios by {multiplier}"
+                if multiplier > 1
+                else "ratios are already whole numbers"
+            ),
+            result=0,
+            unit="",
+            color="red",
+            display_result=f"{whole_result} -> {formula}",
+        ),
+    ]
+
+    return EmpiricalFormulaResult(
+        formula=formula,
+        composition=composition,
+        composition_unit=composition_unit,
+        entries=entries,
+        smallest_moles=smallest_moles,
+        multiplier=multiplier,
+        steps=steps,
+    )
+
+
 def serialize_result(result: ConversionResult) -> Dict[str, object]:
     """Convert dataclasses into JSON-friendly dictionaries."""
 
@@ -415,16 +576,7 @@ def serialize_result(result: ConversionResult) -> Dict[str, object]:
         "toUnit": result.to_unit,
         "result": result.result,
         "resultUnit": result.result_unit,
-        "steps": [
-            {
-                "title": step.title,
-                "expression": step.expression,
-                "result": step.result,
-                "unit": step.unit,
-                "color": step.color,
-            }
-            for step in result.steps
-        ],
+        "steps": _serialize_steps(result.steps),
         "totalAtoms": result.total_atoms,
     }
 
@@ -440,16 +592,7 @@ def serialize_formula_units(result: FormulaUnitsResult) -> Dict[str, object]:
         "sampleUnit": result.sample_unit,
         "sampleMoles": result.sample_moles,
         "formulaUnits": result.formula_units,
-        "steps": [
-            {
-                "title": step.title,
-                "expression": step.expression,
-                "result": step.result,
-                "unit": step.unit,
-                "color": step.color,
-            }
-            for step in result.steps
-        ],
+        "steps": _serialize_steps(result.steps),
     }
 
 
@@ -466,16 +609,32 @@ def serialize_element_analysis(result: ElementAnalysisResult) -> Dict[str, objec
         "elementMass": result.element_mass,
         "massPercent": result.mass_percent,
         "remainderPercent": result.remainder_percent,
-        "steps": [
+        "steps": _serialize_steps(result.steps),
+    }
+
+
+def serialize_empirical_formula(result: EmpiricalFormulaResult) -> Dict[str, object]:
+    """Convert empirical-formula output into a frontend-friendly payload."""
+
+    return {
+        "formula": result.formula,
+        "composition": result.composition,
+        "compositionUnit": result.composition_unit,
+        "smallestMoles": result.smallest_moles,
+        "multiplier": result.multiplier,
+        "entries": [
             {
-                "title": step.title,
-                "expression": step.expression,
-                "result": step.result,
-                "unit": step.unit,
-                "color": step.color,
+                "element": entry.element,
+                "amount": entry.amount,
+                "amountUnit": entry.amount_unit,
+                "atomicMass": entry.atomic_mass,
+                "moles": entry.moles,
+                "ratio": entry.ratio,
+                "wholeNumber": entry.whole_number,
             }
-            for step in result.steps
+            for entry in result.entries
         ],
+        "steps": _serialize_steps(result.steps),
     }
 
 
@@ -488,6 +647,55 @@ def format_number(value: float) -> str:
     if absolute >= 1e6 or absolute < 0.001:
         return f"{value:.4e}"
     return f"{value:.6g}"
+
+
+def _serialize_steps(steps: List[ConversionStep]) -> List[Dict[str, object]]:
+    """Return step dictionaries, including custom display text when useful."""
+
+    payload = []
+    for step in steps:
+        item = {
+            "title": step.title,
+            "expression": step.expression,
+            "result": step.result,
+            "unit": step.unit,
+            "color": step.color,
+        }
+        if step.display_result is not None:
+            item["displayResult"] = step.display_result
+        payload.append(item)
+    return payload
+
+
+def _nearest_integer_multiplier(ratios: List[float]) -> int:
+    """Find a small multiplier that turns decimal ratios into whole numbers."""
+
+    for multiplier in range(1, 13):
+        scaled = [ratio * multiplier for ratio in ratios]
+        if all(abs(value - round(value)) < 0.08 for value in scaled):
+            return multiplier
+    return 1
+
+
+def _reduce_whole_numbers(values: List[int]) -> List[int]:
+    """Reduce whole-number subscripts to their simplest shared ratio."""
+
+    divisor = values[0]
+    for value in values[1:]:
+        divisor = gcd(divisor, value)
+    if divisor <= 1:
+        return values
+    return [value // divisor for value in values]
+
+
+def _format_empirical_formula(entries: List[EmpiricalComposition]) -> str:
+    """Build a formula string, omitting subscript 1 like chemical notation."""
+
+    parts = []
+    for entry in entries:
+        subscript = "" if entry.whole_number == 1 else str(entry.whole_number)
+        parts.append(f"{entry.element}{subscript}")
+    return "".join(parts)
 
 
 def _read_leading_number(text: str) -> Tuple[int, int]:

@@ -6,8 +6,10 @@ from stoichiometrical.conversions import (
     analyze_element_mass_percent,
     analyze_formula_units_in_sample,
     convert_amount,
+    determine_empirical_formula,
     parse_formula,
     serialize_element_analysis,
+    serialize_empirical_formula,
     serialize_formula_units,
     serialize_result,
 )
@@ -89,6 +91,33 @@ class FormulaUnitsTests(unittest.TestCase):
         self.assertIn("formulaUnits", payload)
         self.assertIn("sampleMoles", payload)
         self.assertEqual(payload["sampleUnit"], "mass")
+
+
+class EmpiricalFormulaTests(unittest.TestCase):
+    def test_empirical_formula_from_percent_composition(self):
+        result = determine_empirical_formula(
+            [("C", 40.0), ("H", 6.72), ("O", 53.28)],
+            "percent",
+        )
+        self.assertEqual(result.formula, "CH2O")
+        self.assertEqual(result.composition, {"C": 1, "H": 2, "O": 1})
+
+    def test_empirical_formula_from_grams(self):
+        result = determine_empirical_formula([("Fe", 69.94), ("O", 30.06)], "mass")
+        self.assertEqual(result.formula, "Fe2O3")
+
+    def test_empirical_formula_from_moles(self):
+        result = determine_empirical_formula([("N", 1.0), ("O", 2.5)], "moles")
+        self.assertEqual(result.formula, "N2O5")
+
+    def test_serialized_empirical_formula_shape_matches_frontend(self):
+        payload = serialize_empirical_formula(
+            determine_empirical_formula([("C", 40.0), ("H", 6.72), ("O", 53.28)], "percent")
+        )
+        self.assertEqual(payload["formula"], "CH2O")
+        self.assertIn("compositionUnit", payload)
+        self.assertIn("entries", payload)
+        self.assertIn("displayResult", payload["steps"][0])
 
 
 if __name__ == "__main__":
